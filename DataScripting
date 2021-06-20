@@ -1,0 +1,93 @@
+import urllib.request
+import urllib.error
+from bs4 import BeautifulSoup  # web content analysis
+import re  # regular experession
+import xlwt # excel
+
+def main():
+    baseurl = "https://www.jjwxc.net/topten.php?orderstr=17&t=0"
+    # 1. get web content
+    datalist = getData(baseurl)
+    savepath = ".\\Jianjian.xls"
+    # 3. save data
+    #saveData(savepath)
+    # askURL(baseurl)
+
+
+
+findTag = re.compile(r'h5>(.*)')
+# findLink = re.compile(r'<a href="(.*?)">') # create regular expression - pattern
+findAuthor = re.compile(r'">(.*?)</span>')
+findAuthorID = re.compile(r'authorid=(\d*)">')
+findNovel = re.compile(r'title="(.*)"')
+findNovelID = re.compile(r'novelid=(\d*)"')
+
+
+# spider web
+def getData(baseurl):
+    datalist = []
+    # analysing each page
+    for page in range(1):  # get info from each page
+        url = baseurl + str(page)
+        html = askURL(url)   # save data as html
+
+    # 2. analyse data
+        # identify each block/area
+        soup = BeautifulSoup(html, "html.parser")
+        for block in soup.find_all("div", class_="wrapper box_06"): #查找符合要求的字符串，并形成列表
+            data = []
+            tag = block.find(findTag)
+            # tag = str(tag)
+            # tag = re.findall(findTag, tag)
+            # # find tag/area
+            # print(tag)
+            item = block.find_all('li')  # find each novel
+            for i in item:
+                i = str(i)
+                data.append(tag)
+                author = re.findall(findAuthor, i)[0]    # locate specific characters using regular expression
+                # print(author)
+                data.append(author)
+                authorid = re.findall(findAuthorID, i)[0]
+                data.append(authorid)
+                novel = re.findall(findNovel, i)[0]
+                data.append(novel)
+                novelid = re.findall(findNovelID, i)[0]
+                data.append(novelid)
+                datalist.append(data)
+                print(data)
+                print(datalist)
+                break
+            break
+    # print(datalist)
+    # return datalist
+
+
+
+# get info from a specific web
+def askURL(url):
+    agent= "Mozilla/5.0(Linux; Android 6.0; Nexus 5 Build/MRA58N)AppleWebKit/537.36 (KHTML, like Gecko)Chrome/91.0.4472.77MobileSafari/537.36"
+    head = {
+        "User-Agent": agent
+    }
+    req = urllib.request.Request(url=url, headers=head)
+    html=""
+    try:
+        response = urllib.request.urlopen(req)
+        html = response.read().decode("gb18030")
+    except urllib.error.URLError as e:
+        if hasattr(e, "error"):
+            print(e, code)
+        if hasattr(e, "reason"):
+            print(e, reason)
+    return html
+
+
+# save data
+def saveData(savepath):
+    print("Save")
+
+
+# initiate code
+if __name__ == "__main__":
+    main()
