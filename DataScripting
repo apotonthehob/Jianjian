@@ -34,7 +34,7 @@ def getData(baseurl):
     # 2. analyse data
         # identify each block/area
         soup = BeautifulSoup(html, "html.parser")
-        for block in soup.find_all("div", class_="wrapper box_06"): #查找符合要求的字符串，并形成列表
+        for block in soup.find_all("div", class_="wrapper box_06"): #looking for the data in web based on the tag and attribute
             data = []
             tag = block.find(findTag)
             # tag = str(tag)
