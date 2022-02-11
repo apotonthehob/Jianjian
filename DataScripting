@@ -1,93 +1,331 @@
-import urllib.request
-import urllib.error
-from bs4 import BeautifulSoup  # web content analysis
-import re  # regular experession
-import xlwt # excel
+# -*- coding = utf-8 -*-
+# @Time: 06/02/2022 18:31
+# @Author:
+# @File: Spider.py
+# @Software: PyCharm
+
+from bs4 import BeautifulSoup  # analyse web content
+import re  # regular expression
+import urllib.request, urllib.error  # obtain web content
+import xlwt  # Excel
+import sqlite3  # SQL
+import gzip
+
+"""
+1. select which ranking table
+2. scrip the full table
+3. scrip novel info page
+4. scrip top 10 chapter
+
+"""
+
 
 def main():
-    baseurl = "https://www.jjwxc.net/topten.php?orderstr=17&t=0"
-    # 1. get web content
-    datalist = getData(baseurl)
-    savepath = ".\\Jianjian.xls"
-    # 3. save data
-    #saveData(savepath)
-    # askURL(baseurl)
+    url_3 = "https://www.jjwxc.net/topten.php?orderstr=3&t=0"  # 3 = 新晋作者
+    url_17 = "https://www.jjwxc.net/topten.php?orderstr=17&t=0"  # 17 = 新手金榜
+    novel_url = "https://www.jjwxc.net/onebook.php?novelid="     # url to novel page
+
+    save_path = ".\\jinjian_list.xls"
+    # 1.obtain web content
+    ranking_data_list_3 = get_ranking_data_3(url_3)
+    ranking_data_list_17 = get_ranking_data_17(url_17)
+    novel_id = "0000"
+
+    # for each list:
+    get_novel_info(novel_url, novel_id)
+    get_chapters(novel_url, novel_id, no_of_chapter)
+
+    # 3.saving data
+    # saveData(savepath)
 
 
+no_of_chapter = 10
 
-findTag = re.compile(r'h5>(.*)')
+# rules for finding data items
+# 1. ranking page:
+# 3 = 新晋作者
+findAuthorID = re.compile(r'authorid=(\d*)')
+findNovelID = re.compile(r'novelid=(\d*)')
+
+# 17 = 新手金榜
+findCategory = re.compile(r'<h5>(.*?)</h5>')
 # findLink = re.compile(r'<a href="(.*?)">') # create regular expression - pattern
-findAuthor = re.compile(r'">(.*?)</span>')
-findAuthorID = re.compile(r'authorid=(\d*)">')
-findNovel = re.compile(r'title="(.*)"')
-findNovelID = re.compile(r'novelid=(\d*)"')
+findAuthor = re.compile(r'class="author".*>(.*?)</span>')
+# findAuthorID = re.compile(r'authorid=(\d*)')
+findNovel = re.compile(r'title="(.*?)"')
+# findNovelID = re.compile(r'novelid=(\d*)')
+
+# 2. novel page
+findAurthor = re.compile(r'<meta name="Author" content="(.*?)"')
+findNovel_name = re.compile(r'<title>(《.*?》)')
+findProperties = re.compile(r'<meta name="Keywords" content="(.*?)"')
+findKeywords = re.compile(r'搜索关键字：(.*?)</span>')
+findShortDescription = re.compile(r'一句话简介：(.*?)</span>')
+findNovelIntro = re.compile(r'<div id="novelintro" itemprop="description">(.*?)</div>', re.S)
+
+# 3. chapter page
+findNovelText = re.compile(r'</h2>.*?</div>.*?</div>(.*?)<div id=', re.S)
 
 
-# spider web
-def getData(baseurl):
-    datalist = []
-    # analysing each page
-    for page in range(1):  # get info from each page
-        url = baseurl + str(page)
-        html = askURL(url)   # save data as html
+# 1. obtain web content
+
+def get_data(url):
+    # 1. 新晋
+    get_ranking_data_3(url)
+
+    # 2. 新手金榜
+
+    # 3. novel info
+
+    # 4. chapters- first 10
+
+def get_ranking_data_3(url_3):  # 新晋作者
+    data_list = []
+    html = askURL(url_3)  # send request and read response from server
+
+    # 2.analyse individual web for data
+    soup = BeautifulSoup(html, "html.parser")
+    table = soup.find('tbody')  # find the table with novels
+    rows = table.find_all('tr')  # identify each row
+
+    # row_header = rows[0]   #header
+    for row in rows[1:]:  # first novel starts from first row
+        ranking_data = []
+
+        # analysing for author and novel id
+        c = str(row)  # covert to text for use of regular expression
+        author_id = re.findall(findAuthorID, c)[0]
+        ranking_data.append(author_id)
+        novel_id = re.findall(findNovelID, c)[0]
+        ranking_data.append(novel_id)
+        # abstract = re.findall(findAbstract, c)[0]
+        # abstract = re.sub('&lt;br&gt;', '', abstract)  # triming
+        # data.append(abstract)
+        # print(data)
+        # break
+
+        # analysing for novel properties
+        text = row.get_text().split()  # get text from tags
+        for i in text:
+            ranking_data.append(i)
+
+            """ ranking_data_order:
+            0 - author_id
+            1 - novel_id
+            2 - ranking
+            3 - author_name
+            4 - novel_name
+            5 - category
+            6 - style
+            7 - status
+            8 - word_count
+            9 - score
+            10 - published
+            """
+        data_list.append(ranking_data)  # append individual novel to the collection
+
+    return data_list
+
+def get_ranking_data_17(url_17):
+
+    data_list = []
+    html = askURL(url_17)   # send request and read response from server
 
     # 2. analyse data
-        # identify each block/area
-        soup = BeautifulSoup(html, "html.parser")
-        for block in soup.find_all("div", class_="wrapper box_06"): #looking for the data in web based on the tag and attribute
-            data = []
-            tag = block.find(findTag)
-            # tag = str(tag)
-            # tag = re.findall(findTag, tag)
-            # # find tag/area
-            # print(tag)
-            item = block.find_all('li')  # find each novel
-            for i in item:
-                i = str(i)
-                data.append(tag)
-                author = re.findall(findAuthor, i)[0]    # locate specific characters using regular expression
-                # print(author)
-                data.append(author)
-                authorid = re.findall(findAuthorID, i)[0]
-                data.append(authorid)
-                novel = re.findall(findNovel, i)[0]
-                data.append(novel)
-                novelid = re.findall(findNovelID, i)[0]
-                data.append(novelid)
-                datalist.append(data)
-                print(data)
-                print(datalist)
-                break
-            break
-    # print(datalist)
-    # return datalist
+    # identify each block/area:
+    soup = BeautifulSoup(html, "html.parser")
+    for block in soup.find_all("div", class_="wrapper box_06"): #looking for the data in web based on the tag and attribute
+        # print(block)
+
+        data = []
+        ranking = 0
+
+        # find correct category:
+        category = block.find('h5')
+        category = category.get_text()
+        # print(category)
+
+        # find lists of novels:
+        items = block.find_all('li')  # find each novel
+        for i in items:
+            data.append(category)
+
+            i = str(i)
+            # print(i)
+
+            authorid = re.findall(findAuthorID, i)[0]
+            data.append(authorid)
+
+            novel_id = re.findall(findNovelID, i)[0]
+            data.append(novel_id)
+
+            ranking += 1
+            data.append(ranking)
+
+            author = re.findall(findAuthor, i)[0]    # locate specific characters using regular expression
+            # print(author)
+            data.append(author)
+
+            novel = re.findall(findNovel, i)[0]
+            data.append(novel)
+
+            # if ranking >= 3:
+            #     print(data)
+            #     break
+
+        data_list.append(data)
+
+        # if len(data_list) >= 3:
+        #     print(data_list)
+        #     break
+
+    return data_list
+
+# obtain novel info on novel page
+def get_novel_info(novel_url, novel_id):
+    url = novel_url + novel_id
+    html = askURL(url)
+
+    data = []
+    # 2. analyse individual web for data
+    # analysing head
+    # author
+    author = re.findall(findAurthor, html)[0]
+    data.append(author)
+
+    # novel
+    novel = re.findall(findNovel_name, html)[0]
+    data.append(novel)
+
+    # tags
+    properties = re.findall(findProperties, html)
+    tags = str(properties).split(',')[2]
+    data.append(tags)
+
+    # keywords
+    keywords = re.findall(findKeywords, html)[0]
+    data.append(keywords)
+
+    # shortDescription
+    short_description = re.findall(findShortDescription, html)[0]
+    data.append(short_description)
+
+    # novelIntro
+    novel_intro = re.findall(findNovelIntro, html)[0]
+    novel_intro = re.sub('<br>', '', novel_intro)
+    data.append(novel_intro)
 
 
+    # analysing body
+    soup = BeautifulSoup(html, "html.parser")
 
-# get info from a specific web
+    # novel info
+    novel_info = soup.find("ul", class_="rightul")
+    novel_info = novel_info.get_text()
+    novel_info = str(novel_info).split()
+    data = {}
+    data = {novel_info[0]: novel_info[1], novel_info[2]: novel_info[3],
+            novel_info[4]: novel_info[5], novel_info[6]: novel_info[7],
+            novel_info[8]: novel_info[9], novel_info[10]: novel_info[11],
+            novel_info[12]: novel_info[13], novel_info[14]: novel_info[15]}
+    # print(data)
+
+    # chapters
+    chapter_info = soup.find('table', id="oneboolt")
+    chapter_list = chapter_info.find_all('tr')
+    # print(tr_list)
+    for i in chapter_list[3:]:
+        chapter_data = []
+        text = i.get_text()
+        text = text.split()
+        # print(text)
+        # print(type(text))
+        # break
+        chapter_no = text[0]
+        chapter_data.append(chapter_no)
+        chapter_title = text[1]
+        chapter_data.append(chapter_title)
+        chapter_abstract = text[2]
+        chapter_data.append(chapter_abstract)
+        chapter_wordcount = text[3]
+        chapter_data.append(chapter_wordcount)
+        # print(chapter_data)
+        # break
+
+    # novel performance
+    novel_performance = chapter_list[-1]
+    novel_performance = novel_performance.get_text()
+    performance = {novel_performance[0]: novel_performance[1],
+                   novel_performance[2]: novel_performance[3],
+                   novel_performance[4]: novel_performance[5],
+                   novel_performance[6]: novel_performance[7],
+                   novel_performance[8]: novel_performance[9]}
+
+# obtain chapters from each chapter
+def get_chapters(novel_url, novel_id, no_of_chapter):
+    data_list = []
+    chapter_count = 0
+    for i in range(0, no_of_chapter):
+        chapters = []
+
+        chapters.append(chapter_count)
+        chapter_count += 1
+
+        url = novel_url+novel_id+'&chapterid='+str(i+1)
+        html = askURL(url)
+
+        # soup = BeautifulSoup(html, "html.parser")
+        # text = soup.find_all("tbody")
+        # text = text.find_all("div", class_="noveltext")
+        text = re.findall(findNovelText, html)[0]
+        text = re.sub("<br>", '\n', text)
+        chapters.append(text)
+
+        # print(text)
+        # break
+    data_list.append(chapters)
+    return data_list
+
+# send request and decode response
 def askURL(url):
-    agent= "Mozilla/5.0(Linux; Android 6.0; Nexus 5 Build/MRA58N)AppleWebKit/537.36 (KHTML, like Gecko)Chrome/91.0.4472.77MobileSafari/537.36"
-    head = {
-        "User-Agent": agent
-    }
-    req = urllib.request.Request(url=url, headers=head)
-    html=""
-    try:
-        response = urllib.request.urlopen(req)
-        html = response.read().decode("gb18030")
-    except urllib.error.URLError as e:
-        if hasattr(e, "error"):
-            print(e, code)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.99 Safari/537.36"
+    }  # machine details and expected format of response from the server
+    request = urllib.request.Request(url=url, headers=headers)  # compile request
+
+    html = ""
+
+    try:  # try reading directly
+        response = urllib.request.urlopen(request)
+        html = response.read().decode("gb18030")  # read and decode
+        # print(html)
+
+    except UnicodeDecodeError as e:  # if file is zipped, try gzip
+        response = urllib.request.urlopen(request)  # access html
+        html = gzip.decompress(response.read())  # decompress file
+        # print(type(html))   # class 'bytes'
+        html = html.decode("gb18030")
+        # print(type(html))   # class 'str'
+        # print(html)
+
+    except urllib.error.URLError as e:  # return error if any
+        if hasattr(e, "code"):
+            print(e.code)
         if hasattr(e, "reason"):
-            print(e, reason)
+            print(e.reason)
     return html
 
 
-# save data
-def saveData(savepath):
-    print("Save")
+# 3.saving data
+def saveData(data_list, savepath):
+    Print("saving"+)
+    book = xlwt.Workbook(encoding="utf-8", style_compression=0) # setting workbook
+    sheet = book.add_sheet('....', cell_overwrite_ok=True)
 
 
-# initiate code
-if __name__ == "__main__":
-    main()
+
+
+
+
+# if__name__ == "__main__":  #execute function
+main()
